@@ -1,6 +1,8 @@
 # Gemini 3.1 Pro
 
 import os
+import re
+import time
 import yt_dlp
 import asyncio
 
@@ -40,12 +42,53 @@ def search_soundcloud(query: str, limit: int = 10) -> list:
         result = ydl.extract_info(f"scsearch{limit}:{query}", download=False)
         return result.get("entries", [])
 
-def download_track(url: str) -> dict:
+def download_track(url: str, inline_id: str = None, title: str = "", artist: str = "", loop=None) -> dict:
+    last_update = time.time()
+    
+    def progress_hook(d):
+        nonlocal last_update
+        
+        if d["status"] == "downloading" and inline_id and loop:
+            now = time.time()
+            if now - last_update > 1.5:
+                last_update = now
+                
+                percent_clean = ""
+                
+                total = d.get("total_bytes") or d.get("total_bytes_estimate")
+                downloaded = d.get("downloaded_bytes", 0)
+                
+                if total and total > 0:
+                    percent_clean = f"{(downloaded / total) * 100:.1f}%"
+                elif d.get("fragment_count") and d.get("fragment_index"):
+                    percent_clean = f"{(d['fragment_index'] / d['fragment_count']) * 100:.1f}%"
+                else:
+                    percent_str = d.get("_percent_str", "")
+                    percent_clean = re.sub(r"\x1b\[[0-9;]*m", "", percent_str).strip()
+                
+                if percent_clean:
+                    new_text = f"⏳ <b>{artist} — {title}</b> <i>{percent_clean}</i>"
+                    
+                    async def update_msg():
+                        try:
+                            await bot.edit_message_text(
+                                inline_message_id=inline_id,
+                                text=new_text,
+                                parse_mode="HTML",
+                                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="Downloading...", callback_data="loading") ]])
+                            )
+                        except:
+                            pass
+                            
+                    asyncio.run_coroutine_threadsafe(update_msg(), loop)
+
     ydl_opts = {
         "format": "bestaudio/best",
         "outtmpl": "downloads/%(id)s.%(ext)s",
         "quiet": True,
         "writethumbnail": True, 
+        "concurrent_fragment_downloads": 5, 
+        "progress_hooks": [progress_hook],
         "postprocessors": [
             {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"},
             {"key": "FFmpegMetadata", "add_metadata": True},
@@ -60,7 +103,7 @@ def download_track(url: str) -> dict:
         safe_duration = int(raw_duration) if raw_duration else 0
         
         return {
-            "path": f"downloads/{info["id"]}.mp3",
+            "path": f"downloads/{info['id']}.mp3",
             "title": info.get("title", "Unknown"),
             "artist": info.get("uploader", "Unknown Artist"),
             "duration": safe_duration,
@@ -106,12 +149,12 @@ async def inline_search(query: InlineQuery):
     
     for i, track in enumerate(tracks):
         track_id = str(track.get("id") or i)
-        url_cache[track_id] = track.get("url")
         
         title = track.get("title", "Unknown")
         artist = track.get("uploader", "Unknown Artist")
         duration_str = format_duration(track.get("duration"))
         thumbnail = track.get("thumbnails", [{}])[-1].get("url")
+        url_cache[track_id] = (track.get("url"), title, artist)
         
         results.append(InlineQueryResultArticle(
             id=track_id,
@@ -131,14 +174,27 @@ async def inline_search(query: InlineQuery):
 async def handle_choice(chosen_result: ChosenInlineResult):
     track_id = chosen_result.result_id
     inline_id = chosen_result.inline_message_id
-    url = url_cache.get(track_id)
+    cached_data = url_cache.get(track_id)
     
-    if not url or not inline_id:
+    if not cached_data or not inline_id:
         return
 
+    url, title, artist = cached_data
+    loop = asyncio.get_running_loop()
+
     try:
-        info = await asyncio.to_thread(download_track, url)
+        info = await asyncio.to_thread(download_track, url, inline_id, title, artist, loop)
         
+        try:
+            await bot.edit_message_text(
+                inline_message_id=inline_id,
+                text=f"⏳ <b>{artist} — {title}</b> <i>Uploading...</i>",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="Uploading...", callback_data="loading") ]])
+            )
+        except:
+            pass
+
         thumb_url = info.get("thumbnail")
         thumb_file = URLInputFile(thumb_url) if thumb_url else None
         
@@ -148,7 +204,8 @@ async def handle_choice(chosen_result: ChosenInlineResult):
             title=info["title"],
             performer=info["artist"],
             duration=info["duration"],
-            thumbnail=thumb_file
+            thumbnail=thumb_file,
+            request_timeout=120
         )
         
         file_id = temp_msg.audio.file_id
@@ -158,12 +215,18 @@ async def handle_choice(chosen_result: ChosenInlineResult):
             media=InputMediaAudio(media=file_id)
         )
         
-        # await temp_msg.delete()
+        await temp_msg.delete()
+        
         if os.path.exists(info["path"]):
             os.remove(info["path"])
             
     except Exception as e:
         print(e)
+        
+        try:
+            await bot.edit_message_text(inline_message_id=inline_id, text=f"⛔️ <b>{artist} — {title}</b> <i>Failed.. Try again</i>", parse_mode="HTML")
+        except:
+            pass
 
 async def main():
     if not os.path.exists("downloads"):
