@@ -49,8 +49,8 @@ def download_track(url: str) -> dict:
         "postprocessors": [
             {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"},
             {"key": "FFmpegMetadata", "add_metadata": True},
-            {"key": "EmbedThumbnail"}, 
-        ],
+            {"key": "EmbedThumbnail"}
+        ]
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -84,9 +84,7 @@ async def inline_search(query: InlineQuery):
                 id="empty_query",
                 title="👀 Start typing...",
                 description="For example: Yeat",
-                input_message_content=InputTextMessageContent(
-                    message_text="👀 Start typing... For example: Yeat"
-                )
+                input_message_content=InputTextMessageContent(message_text="👀 Start typing... For example: Yeat")
             )
         ], cache_time=1)
         return
@@ -99,11 +97,9 @@ async def inline_search(query: InlineQuery):
                 id="not_found",
                 title="⛔️ Nothing found",
                 description="Try changing your query",
-                input_message_content=InputTextMessageContent(
-                    message_text="⛔️ Nothing found. Try changing your query."
-                )
+                input_message_content=InputTextMessageContent(message_text="⛔️ Nothing found. Try changing your query.")
             )
-        ], cache_time=5)
+        ], cache_time=1)
         return
 
     results = []
