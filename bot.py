@@ -143,7 +143,7 @@ async def handle_choice(chosen_result: ChosenInlineResult):
         thumb_file = URLInputFile(thumb_url) if thumb_url else None
         
         temp_msg = await bot.send_audio(
-            chat_id=os.getenv("USER"), 
+            chat_id=5500221743, 
             audio=FSInputFile(info["path"]),
             title=info["title"],
             performer=info["artist"],
@@ -158,7 +158,7 @@ async def handle_choice(chosen_result: ChosenInlineResult):
             media=InputMediaAudio(media=file_id)
         )
         
-        await temp_msg.delete()
+        # await temp_msg.delete()
         if os.path.exists(info["path"]):
             os.remove(info["path"])
             
