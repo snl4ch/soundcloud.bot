@@ -1,7 +1,6 @@
 # Gemini 3.1 Pro
 
 import os
-import re
 import time
 import yt_dlp
 import asyncio
@@ -10,7 +9,7 @@ import aiohttp
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
-from aiogram.client.session.aiohttp import AiohttpSession
+# from aiogram.client.session.aiohttp import AiohttpSession
 
 from aiogram.types import (
     Message,
@@ -26,8 +25,9 @@ from aiogram.types import (
 
 load_dotenv()
 
-session = AiohttpSession(timeout=300, proxy=os.getenv("PROXY"))
-bot = Bot(token=os.getenv("TOKEN"), session=session)
+# session = AiohttpSession(timeout=300, proxy=os.getenv("PROXY"))
+# bot = Bot(token=os.getenv("TOKEN"), session=session)
+bot = Bot(token=os.getenv("TOKEN"))
 dp = Dispatcher()
 
 url_cache = {}
@@ -58,38 +58,20 @@ def download_track(url: str, inline_id: str = None, title: str = "", artist: str
         nonlocal last_update
         
         if d["status"] == "downloading" and inline_id and loop:
-            now = time.time()
-            
-            if now - last_update > 1.1:
-                last_update = now
-                percent_clean = ""
-                
-                total = d.get("total_bytes") or d.get("total_bytes_estimate")
-                downloaded = d.get("downloaded_bytes", 0)
-                
-                if total and total > 0:
-                    percent_clean = f"{(downloaded / total) * 100:.1f}%"
-                elif d.get("fragment_count") and d.get("fragment_index"):
-                    percent_clean = f"{(d['fragment_index'] / d['fragment_count']) * 100:.1f}%"
-                else:
-                    percent_str = d.get("_percent_str", "")
-                    percent_clean = re.sub(r"\x1b\[[0-9;]*m", "", percent_str).strip()
-                
-                if percent_clean:
-                    new_text = f"⬇️ <b>{artist} — {title}</b> <i>Downloading: {percent_clean}</i>"
+            new_text = f"⬇️ <b>{artist} — {title}</b> <i>Downloading...</i>"
                     
-                    async def update_msg():
-                        try:
-                            await bot.edit_message_text(
-                                inline_message_id=inline_id,
-                                text=new_text,
-                                parse_mode="HTML",
-                                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="Downloading...", callback_data="loading") ]])
-                            )
-                        except:
-                            pass
+            async def update_msg():
+                try:
+                    await bot.edit_message_text(
+                        inline_message_id=inline_id,
+                        text=new_text,
+                        parse_mode="HTML",
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="1/3...", callback_data="loading") ]])
+                    )
+                except:
+                    pass
                         
-                    asyncio.run_coroutine_threadsafe(update_msg(), loop)
+            asyncio.run_coroutine_threadsafe(update_msg(), loop)
 
         elif d["status"] == "finished" and inline_id and loop:
             new_text = f"⚙️ <b>{artist} — {title}</b> <i>Processing...</i>"
@@ -100,7 +82,7 @@ def download_track(url: str, inline_id: str = None, title: str = "", artist: str
                         inline_message_id=inline_id,
                         text=new_text,
                         parse_mode="HTML",
-                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="Processing...", callback_data="loading") ]])
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="2/3...", callback_data="loading") ]])
                     )
                 except:
                     pass
@@ -143,7 +125,7 @@ def download_track(url: str, inline_id: str = None, title: str = "", artist: str
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    text = "🤓 Msg anywhere <b>@loadsongbot s0Ng nAm3</b> to search any music on soundclout"
+    text = "💬 Message anywhere <b>@loadsongbot artist or song name</b> to search ur fav music on soundclout"
     
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Search", switch_inline_query="")]])
     await message.answer(text, parse_mode="HTML", reply_markup=markup)
@@ -156,9 +138,9 @@ async def inline_search(query: InlineQuery):
         await query.answer([
             InlineQueryResultArticle(
                 id="empty_query",
-                title="👀 Start typing...",
-                description="For example: Yeat",
-                input_message_content=InputTextMessageContent(message_text="👀 Start typing... For example: Yeat")
+                title="🔎 Start typing...",
+                description="For example: yeat",
+                input_message_content=InputTextMessageContent(message_text="🔎 Start typing... For example: yeat")
             )
         ], cache_time=1)
         return
@@ -169,9 +151,9 @@ async def inline_search(query: InlineQuery):
         await query.answer([
             InlineQueryResultArticle(
                 id="not_found",
-                title="⛔️ Nothing found",
+                title="⛔️ Nothing found...",
                 description="Try changing your query",
-                input_message_content=InputTextMessageContent(message_text="⛔️ Nothing found. Try changing your query.")
+                input_message_content=InputTextMessageContent(message_text="⛔️ Nothing found... Try changing your query")
             )
         ], cache_time=1)
         return
@@ -199,7 +181,7 @@ async def inline_search(query: InlineQuery):
                 message_text=f"⏳ <b>{artist} — {title}</b>",
                 parse_mode="HTML"
             ),
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="Downloading...", callback_data="loading") ]])
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="0/3...", callback_data="loading") ]])
         ))
         
     await query.answer(results, cache_time=30)
@@ -215,16 +197,6 @@ async def handle_choice(chosen_result: ChosenInlineResult):
 
     url, title, artist = cached_data
     loop = asyncio.get_running_loop()
-    
-    try:
-        await bot.edit_message_text(
-            inline_message_id=inline_id,
-            text=f"🔄 <b>{artist} — {title}</b> <i>Connecting...</i>",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="Connecting...", callback_data="loading") ]])
-        )
-    except:
-        pass
 
     try:
         info = await asyncio.to_thread(download_track, url, inline_id, title, artist, loop)
@@ -232,9 +204,9 @@ async def handle_choice(chosen_result: ChosenInlineResult):
         try:
             await bot.edit_message_text(
                 inline_message_id=inline_id,
-                text=f"☁️ <b>{artist} — {title}</b> <i>Uploading: 67%</i>",
+                text=f"☁️ <b>{artist} — {title}</b> <i>Uploading...</i>",
                 parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="Uploading...", callback_data="loading") ]])
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="3/3...", callback_data="loading") ]])
             )
         except:
             pass
