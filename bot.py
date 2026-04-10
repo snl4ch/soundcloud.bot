@@ -9,7 +9,7 @@ import aiohttp
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
-# from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.session.aiohttp import AiohttpSession
 
 from aiogram.types import (
     Message,
@@ -25,9 +25,8 @@ from aiogram.types import (
 
 load_dotenv()
 
-# session = AiohttpSession(timeout=300, proxy=os.getenv("PROXY"))
-# bot = Bot(token=os.getenv("TOKEN"), session=session)
-bot = Bot(token=os.getenv("TOKEN"))
+session = AiohttpSession(timeout=300, proxy=os.getenv("PROXY"))
+bot = Bot(token=os.getenv("TOKEN"), session=session)
 dp = Dispatcher()
 
 url_cache = {}
@@ -125,7 +124,7 @@ def download_track(url: str, inline_id: str = None, title: str = "", artist: str
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    text = "💬 Message anywhere <b>@loadsongbot artist or song name</b> to search ur fav music on soundclout"
+    text = "💬 Message anywhere <b>@loadsongbot s0Ng nAm3</b> to search any music on soundclout.\n\nFor example: <code>@loadsongbot yeat talk</code>"
     
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Search", switch_inline_query="")]])
     await message.answer(text, parse_mode="HTML", reply_markup=markup)
