@@ -259,7 +259,7 @@ async def handle_choice(chosen_result: ChosenInlineResult):
         print(e)
         
         try:
-            await bot.edit_message_text(inline_message_id=inline_id, text=f"⛔️ <b>{artist} — {title}</b> <i>Failed.. Try again</i>", parse_mode="HTML")
+            await bot.edit_message_text(inline_message_id=inline_id, text=f"<b>{artist} — {title}</b> <i>Failed...</i>", parse_mode="HTML")
         except:
             pass
 
