@@ -1,5 +1,6 @@
 # Gemini 3.1 Pro
 
+import re
 import os
 import time
 import yt_dlp
@@ -30,6 +31,7 @@ bot = Bot(token=os.getenv("TOKEN"), session=session)
 dp = Dispatcher()
 
 url_cache = {}
+default_msg = "This bot can help you find and share music. It works automatically, no need to add it anywhere. Simply open any of your chats and type <code>@loadsongbot something</code> in the message field. Then tap on a result to send.\n\nFor example, try typing: <code>@loadsongbot yeat would ya</code>."
 
 def format_duration(seconds) -> str:
     if not seconds:
@@ -42,8 +44,9 @@ def search_soundcloud(query: str, limit: int = 10) -> list:
     ydl_opts = {
         "format": "bestaudio/best", 
         "extract_flat": True, 
-        "quiet": True, 
-        "socket_timeout": 15
+        "quiet": True,
+        "socket_timeout": 15,
+        "force_generic_extractor": False
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -52,12 +55,13 @@ def search_soundcloud(query: str, limit: int = 10) -> list:
 
 def download_track(url: str, inline_id: str = None, title: str = "", artist: str = "", loop=None) -> dict:
     last_update = time.time()
+    clean_filename = re.sub(r'[\\/*?:"<>|]', "", f"{artist} - {title}")
     
     def progress_hook(d):
         nonlocal last_update
         
         if d["status"] == "downloading" and inline_id and loop:
-            new_text = f"⬇️ <b>{artist} — {title}</b> <i>Downloading...</i>"
+            new_text = f"<b>{artist} — {title}</b> <i>Downloading...</i>"
                     
             async def update_msg():
                 try:
@@ -73,7 +77,7 @@ def download_track(url: str, inline_id: str = None, title: str = "", artist: str
             asyncio.run_coroutine_threadsafe(update_msg(), loop)
 
         elif d["status"] == "finished" and inline_id and loop:
-            new_text = f"⚙️ <b>{artist} — {title}</b> <i>Processing...</i>"
+            new_text = f"<b>{artist} — {title}</b> <i>Processing...</i>"
             
             async def update_msg_finished():
                 try:
@@ -91,7 +95,7 @@ def download_track(url: str, inline_id: str = None, title: str = "", artist: str
     ydl_opts = {
         "format": "bestaudio/best",
         "external_downloader": "aria2c",
-        "outtmpl": "downloads/%(id)s.%(ext)s",
+        "outtmpl": f"downloads/{clean_filename}.%(ext)s",
         "quiet": True,
         "writethumbnail": True, 
         "concurrent_fragment_downloads": 3,
@@ -114,8 +118,10 @@ def download_track(url: str, inline_id: str = None, title: str = "", artist: str
         raw_thumb = info.get("thumbnails", [{}])[-1].get("url", "")
         safe_thumb = raw_thumb.replace("t500x500", "t300x300").replace("crop", "t300x300").replace("large", "t300x300").replace("original", "t300x300") if raw_thumb else None
         
+        actual_filename = f"downloads/{clean_filename}.m4a"
+        
         return {
-            "path": f"downloads/{info['id']}.m4a",
+            "path": actual_filename,
             "title": info.get("title", "Unknown"),
             "artist": info.get("uploader", "Unknown Artist"),
             "duration": safe_duration,
@@ -124,10 +130,7 @@ def download_track(url: str, inline_id: str = None, title: str = "", artist: str
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    text = "💬 Message anywhere <b>@loadsongbot s0Ng nAm3</b> to search any music on soundclout.\n\nFor example: <code>@loadsongbot yeat talk</code>"
-    
-    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Search", switch_inline_query="")]])
-    await message.answer(text, parse_mode="HTML", reply_markup=markup)
+    await message.answer(default_msg, parse_mode="HTML")
 
 @dp.inline_query()
 async def inline_search(query: InlineQuery):
@@ -137,9 +140,9 @@ async def inline_search(query: InlineQuery):
         await query.answer([
             InlineQueryResultArticle(
                 id="empty_query",
-                title="🔎 Start typing...",
-                description="For example: yeat",
-                input_message_content=InputTextMessageContent(message_text="🔎 Start typing... For example: yeat")
+                title="Search SoundCloud",
+                description="For example, try typing: yeat would ya",
+                input_message_content=InputTextMessageContent(message_text=default_msg)
             )
         ], cache_time=1)
         return
@@ -150,9 +153,9 @@ async def inline_search(query: InlineQuery):
         await query.answer([
             InlineQueryResultArticle(
                 id="not_found",
-                title="⛔️ Nothing found...",
+                title="Nothing found",
                 description="Try changing your query",
-                input_message_content=InputTextMessageContent(message_text="⛔️ Nothing found... Try changing your query")
+                input_message_content=InputTextMessageContent(message_text="Nothing found! Try changing your query.\n\nFor example, try typing: <code>@loadsongbot yeat would ya</code>.")
             )
         ], cache_time=1)
         return
@@ -177,7 +180,7 @@ async def inline_search(query: InlineQuery):
             description=f"{artist} ({duration_str})",
             thumbnail_url=safe_thumb,
             input_message_content=InputTextMessageContent(
-                message_text=f"⏳ <b>{artist} — {title}</b>",
+                message_text=f"<b>{artist} — {title}</b> <i>Preparing...</i>",
                 parse_mode="HTML"
             ),
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="0/3...", callback_data="loading") ]])
@@ -203,7 +206,7 @@ async def handle_choice(chosen_result: ChosenInlineResult):
         try:
             await bot.edit_message_text(
                 inline_message_id=inline_id,
-                text=f"☁️ <b>{artist} — {title}</b> <i>Uploading...</i>",
+                text=f"<b>{artist} — {title}</b> <i>Uploading...</i>",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[ InlineKeyboardButton(text="3/3...", callback_data="loading") ]])
             )
