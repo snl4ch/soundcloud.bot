@@ -140,7 +140,7 @@ async def inline_search(query: InlineQuery):
         await query.answer([
             InlineQueryResultArticle(
                 id="empty_query",
-                title="Search SoundCloud",
+                title="🔎 Start typing...",
                 description="For example, try typing: yeat would ya",
                 input_message_content=InputTextMessageContent(message_text=default_msg)
             )
@@ -153,7 +153,7 @@ async def inline_search(query: InlineQuery):
         await query.answer([
             InlineQueryResultArticle(
                 id="not_found",
-                title="Nothing found",
+                title="⛔️ Nothing found",
                 description="Try changing your query",
                 input_message_content=InputTextMessageContent(message_text="Nothing found! Try changing your query.\n\nFor example, try typing: <code>@loadsongbot yeat would ya</code>.")
             )
